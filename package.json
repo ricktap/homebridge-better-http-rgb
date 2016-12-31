@@ -1,5 +1,5 @@
 {
-  "name": "homebridge-better-http-rgb",
+  "name": "homebridge-particle-rgb",
   "version": "1.0.0",
   "description": "Homebridge plugin to control a web-based RGB device.",
   "license": "ISC",
@@ -11,8 +11,8 @@
     "homebridge": ">=0.2.0"
   },
   "author": {
-    "name": "Justin J. Novack",
-    "email": "jnovack@gmail.com"
+    "name": "Patrick Selge",
+    "email": "pselge@gmail.com"
   },
   "contributors": [
     {
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/jnovack/homebridge-better-http-rgb.git"
+    "url": "git://github.com/ricktap/homebridge-particle-rgb.git"
   },
   "scripts": {
     "lint": "grunt lint",

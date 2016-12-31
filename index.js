@@ -9,7 +9,7 @@ var request = require('request');
 module.exports = function(homebridge){
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
-    homebridge.registerAccessory('homebridge-better-http-rgb', 'HTTP-RGB', HTTP_RGB);
+    homebridge.registerAccessory('homebridge-particle-rgb', 'Particle-RGB', Particle_RGB);
 };
 
 /**
@@ -20,7 +20,7 @@ module.exports = function(homebridge){
  * @param {function} log Logging function
  * @param {object} config Your configuration object
  */
-function HTTP_RGB(log, config) {
+function Particle_RGB(log, config) {
 
     // The logging function is required if you want your function to output
     // any information to the console in a controlled and organized manner.
@@ -29,9 +29,9 @@ function HTTP_RGB(log, config) {
     this.service                       = 'Light';
     this.name                          = config.name;
 
-    this.http_method                   = config.http_method               || 'GET';
-    this.username                      = config.username                  || '';
-    this.password                      = config.password                  || '';
+    this.base_url                      = 'https://api.particle.io/v1/devices'
+    this.device_id                     = config.device_id                 || '';
+    this.access_token                  = config.access_token              || '';
 
     // Handle the basic on/off
     this.switch = { powerOn: {}, powerOff: {} };
@@ -63,7 +63,6 @@ function HTTP_RGB(log, config) {
         this.brightness = {};
         this.brightness.status         = config.brightness.status;
         this.brightness.set_url        = config.brightness.url            || this.brightness.status;
-        this.brightness.http_method    = config.brightness.http_method    || this.http_method;
         this.cache.brightness = 0;
     } else {
         this.brightness = false;
@@ -75,7 +74,6 @@ function HTTP_RGB(log, config) {
         this.color = {};
         this.color.status              = config.color.status;
         this.color.set_url             = config.color.url                 || this.color.status;
-        this.color.http_method         = config.color.http_method         || this.http_method;
         this.color.brightness          = config.color.brightness;
         this.cache.hue = 0;
         this.cache.saturation = 0;
@@ -106,7 +104,7 @@ HTTP_RGB.prototype = {
 
         informationService
             .setCharacteristic(Characteristic.Manufacturer, 'HTTP Manufacturer')
-            .setCharacteristic(Characteristic.Model, 'homebridge-better-http-rgb')
+            .setCharacteristic(Characteristic.Model, 'homebridge-particle-rgb')
             .setCharacteristic(Characteristic.SerialNumber, 'HTTP Serial Number');
 
         switch (this.service) {
@@ -241,7 +239,7 @@ HTTP_RGB.prototype = {
 
         var url = this.switch.status;
 
-        this._httpRequest(url, '', 'GET', function(error, response, responseBody) {
+        this._httpRequest(url, '', '', 'GET', function(error, response, responseBody) {
             if (error) {
                 this.log('getPowerState() failed: %s', error.message);
                 callback(error);
@@ -276,7 +274,7 @@ HTTP_RGB.prototype = {
             body = this.switch.powerOff.body;
         }
 
-        this._httpRequest(url, body, this.http_method, function(error, response, responseBody) {
+        this._httpRequest(url, body, '', 'POST', function(error, response, responseBody) {
             if (error) {
                 this.log('setPowerState() failed: %s', error.message);
                 callback(error);
@@ -300,7 +298,7 @@ HTTP_RGB.prototype = {
         }
 
         if (this.brightness) {
-            this._httpRequest(this.brightness.status, '', 'GET', function(error, response, responseBody) {
+            this._httpRequest(this.brightness.status, '', '', 'GET', function(error, response, responseBody) {
                 if (error) {
                     this.log('getBrightness() failed: %s', error.message);
                     callback(error);
@@ -332,7 +330,7 @@ HTTP_RGB.prototype = {
         if (!this.color) {
             var url = this.brightness.set_url.replace('%s', level);
 
-            this._httpRequest(url, '', this.brightness.http_method, function(error, response, body) {
+            this._httpRequest(url, '', level, 'POST', function(error, response, body) {
                 if (error) {
                     this.log('setBrightness() failed: %s', error);
                     callback(error);
@@ -359,7 +357,7 @@ HTTP_RGB.prototype = {
         }
         var url = this.color.status;
 
-        this._httpRequest(url, '', 'GET', function(error, response, responseBody) {
+        this._httpRequest(url, '', '', 'GET', function(error, response, responseBody) {
             if (error) {
                 this.log('... getHue() failed: %s', error.message);
                 callback(error);
@@ -410,7 +408,7 @@ HTTP_RGB.prototype = {
         }
         var url = this.color.status;
 
-        this._httpRequest(url, '', 'GET', function(error, response, responseBody) {
+        this._httpRequest(url, '', '', 'GET', function(error, response, responseBody) {
             if (error) {
                 this.log('... getSaturation() failed: %s', error.message);
                 callback(error);
@@ -460,16 +458,17 @@ HTTP_RGB.prototype = {
         var g = this._decToHex(rgb.g);
         var b = this._decToHex(rgb.b);
 
-        var url = this.color.set_url.replace('%s', r + g + b);
+        var hex = '#' + r + g + b;
+        var url = this.color.set_url.replace('%s', hex);
 
         this.log('_setRGB converting H:%s S:%s B:%s to RGB:%s ...', this.cache.hue, this.cache.saturation, this.cache.brightness, r + g + b);
 
-        this._httpRequest(url, '', this.color.http_method, function(error, response, body) {
+        this._httpRequest(url, '', hex, 'POST', function(error, response, body) {
             if (error) {
                 this.log('... _setRGB() failed: %s', error);
                 callback(error);
             } else {
-                this.log('... _setRGB() successfully set to #%s', r + g + b);
+                this.log('... _setRGB() successfully set to %s', hex);
                 callback();
             }
         }.bind(this));
@@ -481,19 +480,20 @@ HTTP_RGB.prototype = {
      *
      * @param {string} url URL to call.
      * @param {string} body Body to send.
+     * @param {string} args Arguments to send.
      * @param {method} method Method to use.
      * @param {function} callback The callback that handles the response.
      */
-    _httpRequest: function(url, body, method, callback) {
+    _httpRequest: function(url, body, args method, callback) {
         request({
             url: url,
+            baseUrl: this.baseUrl + '/' + this.device_id + '/'
             body: body,
-            method: method,
-            rejectUnauthorized: false,
-            auth: {
-                user: this.username,
-                pass: this.password
-            }
+            form: {
+                access_token: this.access_token,
+                args: args
+            },
+            method: method
         },
         function(error, response, body) {
             callback(error, response, body);
