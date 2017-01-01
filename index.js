@@ -87,9 +87,9 @@ function Particle_RGB(log, config) {
 
 /**
  *
- * @augments HTTP_RGB
+ * @augments Particle_RGB
  */
-HTTP_RGB.prototype = {
+Particle_RGB.prototype = {
 
     /** Required Functions **/
     identify: function(callback) {
@@ -484,10 +484,10 @@ HTTP_RGB.prototype = {
      * @param {method} method Method to use.
      * @param {function} callback The callback that handles the response.
      */
-    _httpRequest: function(url, body, args method, callback) {
+    _httpRequest: function(url, body, args, method, callback) {
         request({
             url: url,
-            baseUrl: this.baseUrl + '/' + this.device_id + '/'
+            baseUrl: this.base_url + '/' + this.device_id + '/',
             body: body,
             form: {
                 access_token: this.access_token,
